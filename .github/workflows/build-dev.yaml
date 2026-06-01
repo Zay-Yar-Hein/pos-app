@@ -1,0 +1,67 @@
+name: Build & Deploy — Dev
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  GCP_REGION: asia-southeast1
+  GCP_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+  REPO: ${{ secrets.GCP_ARTIFACT_REPO }}
+  IMAGE: pos-app
+  DEPLOYMENT_REPO: YOUR_ORG/devops-deployment
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build tag version
+        id: tag-version
+        run: echo "version=${{ github.run_number }}-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.REPO }}/${{ env.IMAGE }}:${{ steps.tag-version.outputs.version }}
+
+      - name: Checkout deployment repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.DEPLOYMENT_REPO }}
+          path: deployment
+          token: ${{ secrets.DEPLOYMENT_REPO_TOKEN }}
+
+      - name: Update image tag in dev overlay
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          repository: ${{ env.DEPLOYMENT_REPO }}
+          valueFile: pos-app/overlays/dev/kustomization.yaml
+          branch: main
+          createPR: "false"
+          message: "pos-app dev release ${{ steps.tag-version.outputs.version }}"
+          token: ${{ secrets.DEPLOYMENT_REPO_TOKEN }}
+          workDir: deployment
+          changes: |
+            {
+              "images[0].newTag": "${{ steps.tag-version.outputs.version }}"
+            }
