@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: zawthanoo/workshop-apps
-          path: temp_workspace
+          path: deployment
           token: ${{ secrets.MY_GITHUB_TOKEN }}
 
       - name: Update image tag in dev overlay
