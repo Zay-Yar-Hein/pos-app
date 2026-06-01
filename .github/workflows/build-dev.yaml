@@ -57,7 +57,7 @@ jobs:
           branch: main
           createPR: "false"
           message: "pos-app dev release for workshop"
-          token: ${{ secrets.DEVOPS_TOKEN }}
+          token: ${{ secrets.MY_GITHUB_TOKEN }}
           workDir: deployment
           changes: |
             {
