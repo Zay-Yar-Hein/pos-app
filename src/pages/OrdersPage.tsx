@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import type { Order } from "@/lib/api";
 import { getOrders } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +9,13 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const load = () => getOrders().then(setOrders);
+  const load = () =>
+    getOrders()
+      .then(setOrders)
+      .catch((error) => {
+        setOrders([]);
+        toast.error(error instanceof Error ? error.message : "Failed to load orders");
+      });
   useEffect(() => { load(); }, []);
 
   return (

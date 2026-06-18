@@ -16,7 +16,13 @@ export default function ProductsPage() {
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState<Product | null>(null);
 
-  const load = () => getProducts().then(setProducts);
+  const load = () =>
+    getProducts()
+      .then(setProducts)
+      .catch((error) => {
+        setProducts([]);
+        toast.error(error instanceof Error ? error.message : "Failed to load products");
+      });
 
   useEffect(() => { load(); }, []);
 
@@ -38,21 +44,29 @@ export default function ProductsPage() {
       toast.error("All fields are required");
       return;
     }
-    if (editing) {
-      await updateProduct(editing.id, data);
-      toast.success("Product updated");
-    } else {
-      await createProduct(data);
-      toast.success("Product created");
+    try {
+      if (editing) {
+        await updateProduct(editing.id, data);
+        toast.success("Product updated");
+      } else {
+        await createProduct(data);
+        toast.success("Product created");
+      }
+      setOpen(false);
+      load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save product");
     }
-    setOpen(false);
-    load();
   }
 
   async function handleDelete(id: string) {
-    await deleteProduct(id);
-    toast.success("Product deleted");
-    load();
+    try {
+      await deleteProduct(id);
+      toast.success("Product deleted");
+      load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete product");
+    }
   }
 
   return (

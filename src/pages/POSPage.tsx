@@ -16,7 +16,15 @@ export default function POSPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => { getProducts().then(setProducts); }, []);
+  const loadProducts = () =>
+    getProducts()
+      .then(setProducts)
+      .catch((error) => {
+        setProducts([]);
+        toast.error(error instanceof Error ? error.message : "Failed to load products");
+      });
+
+  useEffect(() => { loadProducts(); }, []);
 
   function addToCart(product: Product) {
     if (product.qty === 0) { toast.error("Out of stock"); return; }
@@ -58,10 +66,12 @@ export default function POSPage() {
       if (result.order?.status === "confirmed") {
         toast.success(`Order #${result.order.id} confirmed!`);
         setCart([]);
-        getProducts().then(setProducts);
+        loadProducts();
       } else {
         toast.error(result.error ?? "Order failed");
       }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Order failed");
     } finally {
       setLoading(false);
     }

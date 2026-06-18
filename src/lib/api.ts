@@ -1,5 +1,50 @@
-const INVENTORY = import.meta.env.VITE_INVENTORY_URL ?? "http://localhost:3002";
-const ORDERS    = import.meta.env.VITE_ORDER_URL     ?? "http://localhost:3001";
+const ORDER_SERVICE_URL = import.meta.env.VITE_ORDER_SERVICE_URL ?? "/order";
+
+const normalizePath = (value: string) => {
+  const raw = value.trim();
+
+  if (!raw || raw === "/") {
+    return "";
+  }
+
+  return `/${raw.replace(/^\/+|\/+$/g, "")}`;
+};
+
+const apiUrl = (path: string) =>
+  `${ORDER_SERVICE_URL.replace(/\/+$/g, "")}${normalizePath(path)}`;
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(apiUrl(path), init);
+  const body = await readJson(response);
+
+  if (!response.ok) {
+    const message =
+      typeof body?.error === "string"
+        ? body.error
+        : typeof body?.message === "string"
+          ? body.message
+          : `Request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  return body as T;
+}
+
+async function readJson(response: Response): Promise<any> {
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
+}
+
+function expectArray<T>(value: unknown, name: string): T[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${name} response is not a list`);
+  }
+
+  return value as T[];
+}
 
 export interface Product {
   id: string;
@@ -24,36 +69,33 @@ export interface Order {
 }
 
 // Products
-export const getProducts = (): Promise<Product[]> =>
-  fetch(`${INVENTORY}/api/products`).then((r) => r.json());
+export const getProducts = async (): Promise<Product[]> =>
+  expectArray<Product>(await requestJson<unknown>("/products"), "Products");
 
 export const createProduct = (data: Omit<Product, "id">): Promise<Product> =>
-  fetch(`${INVENTORY}/api/products`, {
+  requestJson<Product>("/products", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
-  }).then((r) => r.json());
+  });
 
 export const updateProduct = (id: string, data: Partial<Omit<Product, "id">>): Promise<Product> =>
-  fetch(`${INVENTORY}/api/products/${id}`, {
+  requestJson<Product>(`/products/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
-  }).then((r) => r.json());
+  });
 
 export const deleteProduct = (id: string): Promise<void> =>
-  fetch(`${INVENTORY}/api/products/${id}`, { method: "DELETE" }).then(() => undefined);
+  requestJson(`/products/${id}`, { method: "DELETE" }).then(() => undefined);
 
 // Orders
-export const getOrders = (): Promise<Order[]> =>
-  fetch(`${ORDERS}/api/orders`).then((r) => r.json());
+export const getOrders = async (): Promise<Order[]> =>
+  expectArray<Order>(await requestJson<unknown>("/orders"), "Orders");
 
 export const createOrder = (items: OrderItem[]): Promise<{ order: Order; error?: string }> =>
-  fetch(`${ORDERS}/api/orders`, {
+  requestJson<{ order: Order; error?: string }>("/orders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ items }),
-  }).then(async (r) => {
-    const body = await r.json();
-    return body;
   });
