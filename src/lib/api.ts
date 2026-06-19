@@ -25,10 +25,10 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function errorMessage(body: any, status: number) {
-  return typeof body?.error === "string"
-    ? body.error
-    : typeof body?.message === "string"
-      ? body.message
+  return typeof body?.message === "string"
+    ? body.message
+    : typeof body?.error === "string"
+      ? body.error
       : `Request failed with status ${status}`;
 }
 
@@ -81,6 +81,18 @@ export interface CreateOrderResponse {
   order?: Order;
   error?: string;
 }
+
+export interface LoginResponse {
+  username: string;
+  displayName: string;
+}
+
+export const login = (username: string, password: string): Promise<LoginResponse> =>
+  requestJson<LoginResponse>("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
 
 // Products
 export const getProducts = async (): Promise<Product[]> =>

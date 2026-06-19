@@ -1,4 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   { to: "/pos", label: "POS" },
@@ -6,7 +8,12 @@ const navItems = [
   { to: "/orders", label: "Orders" },
 ];
 
-export default function Layout() {
+interface LayoutProps {
+  displayName: string;
+  onLogout: () => void;
+}
+
+export default function Layout({ displayName, onLogout }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b bg-card px-6 py-3 flex items-center gap-6">
@@ -28,6 +35,13 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{displayName}</span>
+          <Button variant="outline" size="sm" onClick={onLogout}>
+            <LogOut className="size-4" />
+            Logout
+          </Button>
+        </div>
       </header>
       <main className="flex-1 overflow-auto">
         <Outlet />
