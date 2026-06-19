@@ -46,17 +46,17 @@ jobs:
           path: deployment
           token: ${{ secrets.MY_GITHUB_TOKEN }}
 
-      - name: Update image tag in dev overlay
-        uses: fjogeleit/yaml-update-action@main
-        with:
-          repository: zawthanoo/workshop-apps
-          valueFile: pos-app/overlays/dev/kustomization.yaml
-          branch: main
-          createPR: "false"
-          message: "pos-app dev release for workshop"
-          token: ${{ secrets.MY_GITHUB_TOKEN }}
-          workDir: deployment
-          changes: |
-            {
-              "images[0].newTag": "${{ steps.tag-version.outputs.version }}"
-            }
+      # - name: Update image tag in dev overlay
+      #   uses: fjogeleit/yaml-update-action@main
+      #   with:
+      #     repository: zawthanoo/workshop-apps
+      #     valueFile: pos-app/overlays/dev/kustomization.yaml
+      #     branch: main
+      #     createPR: "false"
+      #     message: "pos-app dev release for workshop"
+      #     token: ${{ secrets.MY_GITHUB_TOKEN }}
+      #     workDir: deployment
+      #     changes: |
+      #       {
+      #         "images[0].newTag": "${{ steps.tag-version.outputs.version }}"
+      #       }
