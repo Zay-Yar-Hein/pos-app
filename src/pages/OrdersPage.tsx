@@ -1,9 +1,14 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Order } from "@/lib/api";
 import { getOrders } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+
+function paymentLabel(order: Order) {
+  if (!order.payment) return "not recorded";
+  return order.payment.approved ? "approved" : "declined";
+}
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -33,18 +38,24 @@ export default function OrdersPage() {
               <th className="px-4 py-3 text-left">Date</th>
               <th className="px-4 py-3 text-right">Items</th>
               <th className="px-4 py-3 text-right">Total</th>
+              <th className="px-4 py-3 text-center">Payment</th>
               <th className="px-4 py-3 text-center">Status</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {orders.map((o) => (
-              <>
-                <tr key={o.id} className="border-t hover:bg-muted/30">
+              <Fragment key={o.id}>
+                <tr className="border-t hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono font-bold">#{o.id}</td>
                   <td className="px-4 py-3 text-muted-foreground">{new Date(o.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-3 text-right">{o.items.length}</td>
                   <td className="px-4 py-3 text-right font-semibold">${o.total.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <Badge variant={!o.payment ? "outline" : o.payment.approved ? "default" : "destructive"}>
+                      {paymentLabel(o)}
+                    </Badge>
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <Badge variant={o.status === "confirmed" ? "default" : "destructive"}>
                       {o.status}
@@ -58,7 +69,21 @@ export default function OrdersPage() {
                 </tr>
                 {expanded === o.id && (
                   <tr key={`${o.id}-details`} className="bg-muted/20">
-                    <td colSpan={6} className="px-8 py-3">
+                    <td colSpan={7} className="px-8 py-3">
+                      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        <span className="font-semibold">Payment</span>
+                        <Badge variant={!o.payment ? "outline" : o.payment.approved ? "default" : "destructive"}>
+                          {paymentLabel(o)}
+                        </Badge>
+                        {o.payment?.message && (
+                          <span className="text-muted-foreground">{o.payment.message}</span>
+                        )}
+                        {o.payment?.transactionId && (
+                          <span className="font-mono text-muted-foreground break-all">
+                            {o.payment.transactionId}
+                          </span>
+                        )}
+                      </div>
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-muted-foreground">
@@ -82,10 +107,10 @@ export default function OrdersPage() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
             {orders.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No orders yet</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">No orders yet</td></tr>
             )}
           </tbody>
         </table>

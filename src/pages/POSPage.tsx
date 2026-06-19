@@ -1,20 +1,48 @@
 import { useEffect, useState } from "react";
+import { Banknote, CheckCircle2, CreditCard, Loader2, Smartphone, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import type { Product, OrderItem } from "@/lib/api";
+import type { Product, Order, OrderItem } from "@/lib/api";
 import { getProducts, createOrder } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface CartItem extends OrderItem {
   cartQty: number;
 }
 
+const configuredPaymentBalance = Number(import.meta.env.VITE_PAYMENT_BALANCE ?? 500);
+const PAYMENT_BALANCE = Number.isFinite(configuredPaymentBalance) ? configuredPaymentBalance : 500;
+
+const paymentMethods = [
+  { id: "card", label: "Card" },
+  { id: "cash", label: "Cash" },
+  { id: "mobile", label: "Mobile Pay" },
+] as const;
+
+type PaymentMethod = (typeof paymentMethods)[number]["id"];
+type PaymentStep = "review" | "processing" | "success" | "failed";
+
+const formatMoney = (value: number) => `$${value.toFixed(2)}`;
+
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
+  const [paymentStep, setPaymentStep] = useState<PaymentStep>("review");
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const loadProducts = () =>
     getProducts()
@@ -56,22 +84,55 @@ export default function POSPage() {
   }
 
   const total = cart.reduce((sum, c) => sum + c.price * c.cartQty, 0);
+  const remainingBalance = Math.max(PAYMENT_BALANCE - total, 0);
+  const balanceCoversTotal = total <= PAYMENT_BALANCE;
+
+  function openPaymentDialog() {
+    if (cart.length === 0) { toast.error("Cart is empty"); return; }
+    setPaymentStep("review");
+    setPaymentOrder(null);
+    setPaymentError(null);
+    setPaymentOpen(true);
+  }
+
+  function handlePaymentOpenChange(open: boolean) {
+    if (!open && loading) return;
+    setPaymentOpen(open);
+  }
 
   async function handleCheckout() {
     if (cart.length === 0) { toast.error("Cart is empty"); return; }
     setLoading(true);
+    setPaymentStep("processing");
+    setPaymentOrder(null);
+    setPaymentError(null);
     try {
       const items: OrderItem[] = cart.map((c) => ({ productId: c.productId, name: c.name, price: c.price, qty: c.cartQty }));
-      const result = await createOrder(items);
+      const result = await createOrder(items, paymentMethod);
       if (result.order?.status === "confirmed") {
-        toast.success(`Order #${result.order.id} confirmed!`);
+        const paymentMessage = result.order.payment?.message;
+        setPaymentOrder(result.order);
+        setPaymentStep("success");
+        toast.success(
+          paymentMessage
+            ? `Order #${result.order.id} confirmed. ${paymentMessage}`
+            : `Order #${result.order.id} confirmed!`
+        );
         setCart([]);
         loadProducts();
       } else {
-        toast.error(result.error ?? "Order failed");
+        const paymentMessage = result.order?.payment?.message;
+        const message = paymentMessage ?? result.error ?? "Order failed";
+        setPaymentOrder(result.order ?? null);
+        setPaymentError(message);
+        setPaymentStep("failed");
+        toast.error(message);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Order failed");
+      const message = error instanceof Error ? error.message : "Order failed";
+      setPaymentError(message);
+      setPaymentStep("failed");
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -133,12 +194,156 @@ export default function POSPage() {
               <span>Total</span>
               <span>${total.toFixed(2)}</span>
             </div>
-            <Button className="w-full" size="lg" onClick={handleCheckout} disabled={loading || cart.length === 0}>
-              {loading ? "Processing..." : "Checkout"}
+            <Button className="w-full" size="lg" onClick={openPaymentDialog} disabled={loading || cart.length === 0}>
+              Checkout
             </Button>
           </div>
         </div>
       </div>
+
+      <Dialog open={paymentOpen} onOpenChange={handlePaymentOpenChange}>
+        <DialogContent className="sm:max-w-md" showCloseButton={!loading}>
+          <DialogHeader>
+            <DialogTitle>Payment</DialogTitle>
+            <DialogDescription>
+              Review the order and authorize payment.
+            </DialogDescription>
+          </DialogHeader>
+
+          {paymentStep === "review" && (
+            <div className="space-y-4">
+              <div className="rounded-lg border p-3 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Order total</span>
+                  <span className="font-semibold">{formatMoney(total)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Current balance</span>
+                  <span>{formatMoney(PAYMENT_BALANCE)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">After payment</span>
+                  <span>{formatMoney(remainingBalance)}</span>
+                </div>
+                <div className="pt-1">
+                  <Badge variant={balanceCoversTotal ? "secondary" : "destructive"}>
+                    {balanceCoversTotal ? "Balance available" : "Balance too low"}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Payment method</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {paymentMethods.map((method) => (
+                    <Button
+                      key={method.id}
+                      type="button"
+                      variant={paymentMethod === method.id ? "default" : "outline"}
+                      className="h-auto flex-col gap-2 py-3"
+                      onClick={() => setPaymentMethod(method.id)}
+                    >
+                      {method.id === "card" && <CreditCard />}
+                      {method.id === "cash" && <Banknote />}
+                      {method.id === "mobile" && <Smartphone />}
+                      <span className="text-xs">{method.label}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {paymentStep === "processing" && (
+            <div className="py-8 text-center space-y-3">
+              <Loader2 className="mx-auto size-9 animate-spin text-primary" />
+              <div>
+                <p className="font-semibold">Authorizing payment</p>
+                <p className="text-sm text-muted-foreground">{formatMoney(total)} via {paymentMethod}</p>
+              </div>
+            </div>
+          )}
+
+          {paymentStep === "success" && paymentOrder && (
+            <div className="py-4 text-center space-y-3">
+              <CheckCircle2 className="mx-auto size-10 text-primary" />
+              <div>
+                <p className="font-semibold">Payment approved</p>
+                <p className="text-sm text-muted-foreground">Order #{paymentOrder.id} confirmed</p>
+              </div>
+              <div className="rounded-lg border p-3 text-left text-sm space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Amount</span>
+                  <span className="font-semibold">{formatMoney(paymentOrder.total)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Balance</span>
+                  <span>{formatMoney(Math.max(PAYMENT_BALANCE - paymentOrder.total, 0))}</span>
+                </div>
+                {paymentOrder.payment?.transactionId && (
+                  <div>
+                    <p className="text-muted-foreground">Transaction</p>
+                    <p className="font-mono break-all">{paymentOrder.payment.transactionId}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {paymentStep === "failed" && (
+            <div className="py-4 text-center space-y-3">
+              <XCircle className="mx-auto size-10 text-destructive" />
+              <div>
+                <p className="font-semibold">Payment declined</p>
+                <p className="text-sm text-muted-foreground">{paymentError ?? paymentOrder?.payment?.message ?? "Order failed"}</p>
+              </div>
+              <div className="rounded-lg border p-3 text-left text-sm space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Amount</span>
+                  <span className="font-semibold">{formatMoney(total)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Current balance</span>
+                  <span>{formatMoney(PAYMENT_BALANCE)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            {paymentStep === "review" && (
+              <>
+                <Button variant="outline" onClick={() => setPaymentOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCheckout} disabled={loading || cart.length === 0}>
+                  Pay {formatMoney(total)}
+                </Button>
+              </>
+            )}
+            {paymentStep === "processing" && (
+              <Button disabled>
+                Processing...
+              </Button>
+            )}
+            {paymentStep === "success" && (
+              <Button onClick={() => setPaymentOpen(false)}>
+                Done
+              </Button>
+            )}
+            {paymentStep === "failed" && (
+              <>
+                <Button variant="outline" onClick={() => setPaymentOpen(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => setPaymentStep("review")}>
+                  Try again
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

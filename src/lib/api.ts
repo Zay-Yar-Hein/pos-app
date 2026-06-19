@@ -18,16 +18,18 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const body = await readJson(response);
 
   if (!response.ok) {
-    const message =
-      typeof body?.error === "string"
-        ? body.error
-        : typeof body?.message === "string"
-          ? body.message
-          : `Request failed with status ${response.status}`;
-    throw new Error(message);
+    throw new Error(errorMessage(body, response.status));
   }
 
   return body as T;
+}
+
+function errorMessage(body: any, status: number) {
+  return typeof body?.error === "string"
+    ? body.error
+    : typeof body?.message === "string"
+      ? body.message
+      : `Request failed with status ${status}`;
 }
 
 async function readJson(response: Response): Promise<any> {
@@ -65,7 +67,19 @@ export interface Order {
   items: OrderItem[];
   total: number;
   status: "confirmed" | "failed";
+  payment?: PaymentResult;
   createdAt: string;
+}
+
+export interface PaymentResult {
+  approved: boolean;
+  transactionId?: string | null;
+  message: string;
+}
+
+export interface CreateOrderResponse {
+  order?: Order;
+  error?: string;
 }
 
 // Products
@@ -93,9 +107,20 @@ export const deleteProduct = (id: string): Promise<void> =>
 export const getOrders = async (): Promise<Order[]> =>
   expectArray<Order>(await requestJson<unknown>("/orders"), "Orders");
 
-export const createOrder = (items: OrderItem[]): Promise<{ order: Order; error?: string }> =>
-  requestJson<{ order: Order; error?: string }>("/orders", {
+export const createOrder = async (
+  items: OrderItem[],
+  paymentMethod?: string,
+): Promise<CreateOrderResponse> => {
+  const response = await fetch(apiUrl("/orders"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ items }),
+    body: JSON.stringify({ items, paymentMethod }),
   });
+  const body = await readJson(response);
+
+  if (!response.ok && !body?.order) {
+    throw new Error(errorMessage(body, response.status));
+  }
+
+  return body as CreateOrderResponse;
+};
