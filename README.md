@@ -1,4 +1,4 @@
-# POS App
+# POS App - Edit
 
 React/Vite frontend for the workshop POS demo.
 
