@@ -42,14 +42,14 @@ jobs:
       - name: Checkout Kustomize chart Repository
         uses: actions/checkout@v3
         with:
-          repository: zawthanoo/workshop-apps
+          repository: Zay-Yar-Hein/DevOps-Workshop
           path: deployment
           token: ${{ secrets.MY_GITHUB_TOKEN }}
 
       - name: Update image tag in dev overlay
         uses: fjogeleit/yaml-update-action@main
         with:
-          repository: zawthanoo/workshop-apps
+          repository: Zay-Yar-Hein/DevOps-Workshop
           valueFile: pos-app/overlays/dev/kustomization.yaml
           branch: main
           createPR: "false"
